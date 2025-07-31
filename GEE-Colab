@@ -1,0 +1,66 @@
+# 📌 STEP 1: Import Libraries
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# 📌 STEP 2: Upload CSV File
+from google.colab import files
+uploaded = files.upload()
+
+# Automatically grab the uploaded file
+filename = next(iter(uploaded))
+
+# 📌 STEP 3: Read CSV
+df = pd.read_csv(filename)
+
+# 📌 STEP 4: Check and clean data
+df = df[['State', 'Year', 'Avg_Rainfall_mm']]
+df['Year'] = df['Year'].astype(int)
+df['Avg_Rainfall_mm'] = df['Avg_Rainfall_mm'].astype(float)
+
+# 📌 STEP 5: Plot Rainfall Trends for All States
+plt.figure(figsize=(14, 8))
+sns.lineplot(data=df, x='Year', y='Avg_Rainfall_mm', hue='State', marker='o')
+plt.title('Rainfall Trends for All Indian States (2020–2024)')
+plt.xlabel('Year')
+plt.ylabel('Avg Rainfall (mm)')
+plt.xticks(df['Year'].unique())
+plt.grid(True)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', ncol=2)
+plt.tight_layout()
+plt.show()
+
+# 📌 STEP 6: Identify Top 5 States with Highest Rainfall Change (2020 vs 2024)
+pivot = df.pivot(index='Year', columns='State', values='Avg_Rainfall_mm')
+change = (pivot.loc[2024] - pivot.loc[2020]).abs().sort_values(ascending=False)
+top_states = change.head(5).index.tolist()
+
+# 📌 STEP 7: Plot Rainfall Trends for Top 5 Changing States
+plt.figure(figsize=(10, 6))
+for state in top_states:
+    sns.lineplot(data=df[df['State'] == state], x='Year', y='Avg_Rainfall_mm', label=state, marker='o')
+
+plt.title('Top 5 States with Highest Rainfall Change (2020–2024)')
+plt.xlabel('Year')
+plt.ylabel('Avg Rainfall (mm)')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# 📌 STEP 8: Prepare Data for Datawrapper – Summary by State
+# Option A: Average Rainfall across all years
+summary_avg = df.groupby('State')['Avg_Rainfall_mm'].mean().reset_index()
+summary_avg.rename(columns={'Avg_Rainfall_mm': 'Average_Rainfall_2020_2024_mm'}, inplace=True)
+
+# Option B: Rainfall for 2024 only
+summary_2024 = df[df['Year'] == 2024][['State', 'Avg_Rainfall_mm']]
+summary_2024.rename(columns={'Avg_Rainfall_mm': 'Rainfall_2024_mm'}, inplace=True)
+
+# 📌 STEP 9: Save and download the cleaned summary files
+summary_avg.to_csv('Rainfall_Average_2020_2024_Datawrapper.csv', index=False)
+summary_2024.to_csv('Rainfall_2024_Only_Datawrapper.csv', index=False)
+
+# Option to download in Colab
+files.download('Rainfall_Average_2020_2024_Datawrapper.csv')
+files.download('Rainfall_2024_Only_Datawrapper.csv')
