@@ -1,0 +1,55 @@
+// STEP 1: Load Indian state boundaries
+var states = ee.FeatureCollection("FAO/GAUL/2015/level1")
+                .filter(ee.Filter.eq('ADM0_NAME', 'India'));
+
+// STEP 2: Load CHIRPS rainfall data for 2020–2024
+var rainfall = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+                .filterDate('2020-01-01', '2024-12-31');
+
+// STEP 3: Compute total rainfall per year
+var years = ee.List.sequence(2020, 2024);
+var yearlyRain = years.map(function(year) {
+  year = ee.Number(year);
+  var annual = rainfall
+    .filter(ee.Filter.calendarRange(year, year, 'year'))
+    .sum()
+    .set('year', year)
+    .set('system:time_start', ee.Date.fromYMD(year, 1, 1).millis());
+  return annual;
+});
+var yearlyRainCollection = ee.ImageCollection(yearlyRain);
+
+// STEP 4: Visualize rainfall for 2024
+var rain2024 = ee.Image(yearlyRain.get(-1));
+Map.centerObject(states, 5);
+Map.addLayer(
+  rain2024.clip(states),
+  {min: 200, max: 3000, palette: ['#d4f0ff', '#2e8b57', '#003300']},
+  'Total Rainfall - 2024 (mm)'
+);
+
+// STEP 5: Calculate mean rainfall for each state and year
+var stateYearlyRain = states.map(function(state) {
+  var stats = yearlyRain.map(function(image) {
+    image = ee.Image(image);
+    var mean = image.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: state.geometry(),
+      scale: 5000,
+      maxPixels: 1e13
+    });
+    return ee.Feature(null, {
+      'State': state.get('ADM1_NAME'),
+      'Year': image.get('year'),
+      'Avg_Rainfall_mm': mean.get('precipitation')
+    });
+  });
+  return ee.FeatureCollection(stats);
+}).flatten();
+
+// STEP 6: Export the data
+Export.table.toDrive({
+  collection: stateYearlyRain,
+  description: 'India_States_Annual_Rainfall_2020_2024',
+  fileFormat: 'CSV'
+});
