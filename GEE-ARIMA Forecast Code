@@ -1,0 +1,89 @@
+# 📦 Install required libraries
+!pip install pandas plotly statsmodels scipy
+
+# 📚 Import libraries
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from statsmodels.tsa.arima.model import ARIMA
+from scipy.stats import f_oneway
+from google.colab import files
+import io
+import warnings
+warnings.filterwarnings("ignore")
+
+# 📤 Upload CSV file
+print("Upload CSV with columns: State, Year, Avg_Rainfall_mm (2020–2024)")
+uploaded = files.upload()
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(io.BytesIO(uploaded[file_name]))
+
+# 🧹 Clean and prepare data
+df['Year'] = df['Year'].astype(int)
+df['Avg_Rainfall_mm'] = df['Avg_Rainfall_mm'].astype(float)
+df.sort_values(by=['State', 'Year'], inplace=True)
+
+# 🔮 Forecast rainfall for 2025–2026 using ARIMA
+forecast_rows = []
+future_years = [2025, 2026]
+
+for state in df['State'].unique():
+    state_data = df[df['State'] == state].set_index('Year')
+    series = state_data['Avg_Rainfall_mm']
+    
+    if len(series) < 2:
+        print(f"⚠️ Not enough data to forecast for {state}")
+        continue
+
+    try:
+        model = ARIMA(series, order=(1, 1, 1))
+        model_fit = model.fit()
+        forecast = model_fit.forecast(steps=2).values
+    except:
+        print(f"⚠️ ARIMA failed for {state}, using last known value")
+        forecast = [series.iloc[-1]] * 2  # fallback
+    
+    for i, year in enumerate(future_years):
+        forecast_rows.append({
+            'State': state,
+            'Year': year,
+            'Avg_Rainfall_mm': float(forecast[i])
+        })
+
+# 🔗 Combine forecast with original data
+forecast_df = pd.DataFrame(forecast_rows)
+full_df = pd.concat([df, forecast_df], ignore_index=True).sort_values(['State', 'Year'])
+
+# 🚨 Anomaly detection using ANOVA
+print("\n🔍 ANOVA-based anomaly detection:")
+for state in df['State'].unique():
+    state_data = df[df['State'] == state]
+    yearly_values = [group['Avg_Rainfall_mm'].values for _, group in state_data.groupby('Year')]
+    if len(yearly_values) > 1:
+        f_stat, p_value = f_oneway(*yearly_values)
+        if p_value < 0.05:
+            print(f"🚨 Anomaly detected in {state} (p = {p_value:.4f})")
+
+# 📈 Top 5 states with largest change (2020 vs 2026)
+pivot = full_df.pivot(index='Year', columns='State', values='Avg_Rainfall_mm')
+valid_states = pivot.columns[pivot.loc[2020].notna() & pivot.loc[2026].notna()]
+change = (pivot.loc[2026, valid_states] - pivot.loc[2020, valid_states]).abs().sort_values(ascending=False)
+top5_states = change.head(5).index.tolist()
+
+# 📊 Interactive line chart for top 5 changing states
+line_df = full_df[full_df['State'].isin(top5_states)]
+fig_line = px.line(line_df, x='Year', y='Avg_Rainfall_mm', color='State',
+                   title='🌧️ Rainfall Trends (2020–2026) – Top 5 States by Change')
+fig_line.update_traces(mode='lines+markers')
+fig_line.show()
+
+# 📊 Interactive bar chart for all states (2024–2026)
+bar_df = full_df[full_df['Year'].isin([2024, 2025, 2026])]
+fig_bar = px.bar(bar_df, x='State', y='Avg_Rainfall_mm', color='Year',
+                 barmode='group', title='📊 Rainfall Comparison by State (2024–2026)')
+fig_bar.show()
+
+# 💾 Export predictions to CSV
+forecast_df.to_csv("predicted_rainfall_2025_2026.csv", index=False)
+files.download("predicted_rainfall_2025_2026.csv")
+print("✅ Predictions exported as 'predicted_rainfall_2025_2026.csv'")
