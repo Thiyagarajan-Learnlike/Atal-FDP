@@ -1,0 +1,17 @@
+Create a Google Colab Python script that:
+
+Uploads a CSV with columns: State, Year, Avg_Rainfall_mm (2020–2024).
+
+Uses ARIMA to forecast rainfall for 2025–2026 per state.
+
+Detects anomalies per state using ANOVA (p < 0.05).
+
+Plots:
+
+An interactive line chart (Plotly) showing trends for the top 5 states with the largest rainfall change (2020–2026).
+
+An interactive bar chart comparing rainfall across states for 2024–2026.
+
+Exports predicted rainfall (2025–2026) to a downloadable CSV.
+
+Use pandas, plotly, statsmodels, scipy, and google.colab.files.
