@@ -1,0 +1,81 @@
+# Install required packages
+!pip install pandas seaborn scikit-learn matplotlib
+
+# Import libraries
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from google.colab import files
+
+# Upload CSV file
+print("Please upload your CSV file with columns: State, Year, Avg_Rainfall_mm")
+uploaded = files.upload()
+
+# Load the uploaded file
+import io
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(io.BytesIO(uploaded[file_name]))
+
+# Ensure correct data types
+df['Year'] = df['Year'].astype(int)
+df['Avg_Rainfall_mm'] = df['Avg_Rainfall_mm'].astype(float)
+
+# Forecast for 2025 and 2026 using Linear Regression
+future_years = [2025, 2026]
+predictions = []
+
+for state in df['State'].unique():
+    state_df = df[df['State'] == state]
+    X = state_df[['Year']]
+    y = state_df['Avg_Rainfall_mm']
+    
+    model = LinearRegression()
+    model.fit(X, y)
+    
+    future_X = pd.DataFrame({'Year': future_years})
+    predicted_y = model.predict(future_X)
+    
+    for year, rain in zip(future_years, predicted_y):
+        predictions.append({'State': state, 'Year': year, 'Avg_Rainfall_mm': rain})
+
+# Create prediction DataFrame and combine
+pred_df = pd.DataFrame(predictions)
+full_df = pd.concat([df, pred_df], ignore_index=True).sort_values(by=['State', 'Year'])
+
+# Pivot to calculate change from 2020 to 2026
+pivot = full_df.pivot(index='Year', columns='State', values='Avg_Rainfall_mm')
+change = (pivot.loc[2026] - pivot.loc[2020]).abs().sort_values(ascending=False)
+top5_states = change.head(5).index.tolist()
+
+# Plot: Line graph for top 5 changing states
+plt.figure(figsize=(12, 6))
+for state in top5_states:
+    state_data = full_df[full_df['State'] == state]
+    sns.lineplot(x='Year', y='Avg_Rainfall_mm', data=state_data, label=state)
+
+plt.title('Top 5 States with Largest Rainfall Change (2020–2026)')
+plt.xlabel('Year')
+plt.ylabel('Avg Rainfall (mm)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Plot: Bar chart for 2024–2026 across all states
+bar_df = full_df[full_df['Year'].isin([2024, 2025, 2026])]
+plt.figure(figsize=(14, 7))
+sns.barplot(data=bar_df, x='State', y='Avg_Rainfall_mm', hue='Year')
+plt.title('Rainfall Comparison Across States (2024–2026)')
+plt.xlabel('State')
+plt.ylabel('Avg Rainfall (mm)')
+plt.xticks(rotation=45)
+plt.grid(True, axis='y')
+plt.tight_layout()
+plt.show()
+
+# Export predictions to CSV
+pred_df.to_csv('predicted_rainfall_2025_2026.csv', index=False)
+files.download('predicted_rainfall_2025_2026.csv')
+print("✅ Predictions saved and downloaded as 'predicted_rainfall_2025_2026.csv'")
